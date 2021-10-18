@@ -8,4 +8,5 @@
   :serial t
   :depends-on (#:cl-pdf #:cl-typesetting)
   :components ((:file "package")
-               (:file "wo-box")))
+               (:file "wo-box")
+	       (:file "test-plot")))

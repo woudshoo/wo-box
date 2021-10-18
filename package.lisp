@@ -1,4 +1,7 @@
 ;;;; package.lisp
 
 (defpackage #:wo-box
-  (:use #:cl))
+  (:use #:cl)
+  (:export
+   #:plot-s
+   #:test-plot-s))
