@@ -219,11 +219,24 @@
   (line-to x (- y ms))
   (pdf:close-path))
 
+;;;
+;;;
+;;;       a*1/i + b            a + i *b
+;;;       ---------        =  ---------
+;;;         (1 + 1/i)           i + 1
+;;;
+;; 
+(defun change-color (color-1 color-2 index)
+  ""
+  (mapcar (lambda (a b) (/ (+ a (* (sqrt index) b)) (1+ (sqrt index)))) color-1 color-2))
+
 (defmethod draw-object ((plot plot-s))
   (let ((height (height plot))
 	(width (width plot))
 	(min-value-x (axis-min (x-axis plot)))
-	(max-value-x (axis-max (x-axis plot))))
+	(max-value-x (axis-max (x-axis plot)))
+	(mark-start/stop   t)
+	(line-width (line-width plot)))
     (with-saved-state
       (translate (x plot) (y plot))
       (set-line-width (line-width (x-axis plot)))
@@ -232,7 +245,7 @@
 	(line-to tick-x height)
 	(stroke))
 
-      (set-line-width (line-width plot))
+      (set-line-width line-width)
       (pdf:set-line-cap 0)
       (loop :with repeat-count = (repeat-count plot)
 	    :with range-x-block = (/ (- max-value-x min-value-x) repeat-count)
@@ -242,37 +255,58 @@
 	    :for max-x = (+ min-x range-x-block)
 	    :with scale-x =  (* (axis-scale (x-axis plot)) repeat-count)
 	    :do
-;	       (format t "MIN-X: ~A MAX-X: ~A BLOCK: ~A~%" min-x max-x block)
 	       (loop :with y-axis = (y-axis plot)
 		     :for start-marker = nil
 		     :for stop-marker  = nil
+		     :for mark-positions = (list)
 		     :with ms = (/ (marker-size plot) 2)
 		     :for serie :in (series plot)
 		     :for serie-count :from 0
 		     :for (ln color) :in (labels&colors plot)
+		     :for last-color = nil
 		     :for y = (label-pos-repeat-vertical-axis y-axis serie-count block)
+		     :for grouped-serie = (group-by:group-by serie :key #'third :value #'identity)
 		     :do
-			(apply #'set-rgb-stroke color)
-			(apply #'set-rgb-fill color)
-			(loop :for (sx1 sx2) :in serie
-			      :for (ix1 ix2) = (when (and sx2 sx1) (intersect-intervals min-x max-x sx1 sx2))
-			      :for x1 = (when ix1 (* (max 0 (- ix1 min-x)) scale-x))
-			      :for x2 = (when ix2 (* (min range-x-block (- ix2 min-x)) scale-x))
+;			(format t "do-serie: ~D~%" serie-count)
+;			(format t "grouped-serie: ~A~%" grouped-serie)
+			(loop :for (depth . sub-serie) :in (sort grouped-serie (lambda (x y) (< (or x -1) (or y -1))) :key #'car)
 			      :do
-;				 (format t "   <L ~A: ~A -- ~A, scale ~A ~%" ln x1 x2 scale-x)
-				 (when (and x1 x2 (interval-not-empty-p x1 x2))
-				   (setf start-marker (or start-marker (< sx1 min-x)))
-				   (setf stop-marker (or stop-marker (> sx2 max-x)))
-				   (move-to x1 y)
-				   (line-to x2 y)))
-			(stroke)
-			(when (or start-marker stop-marker)
+				 (loop :for (sx1 sx2 depth data-color) :in sub-serie
+				       :for (ix1 ix2) = (when (and sx2 sx1) (intersect-intervals min-x max-x sx1 sx2))
+				       :for x1 = (when ix1 (* (max 0 (- ix1 min-x)) scale-x))
+				       :for x2 = (when ix2 (* (min range-x-block (- ix2 min-x)) scale-x))
+				       :for d = (or depth 0)
+				       :for adj-y = (+ y (* line-width d))
+				       :for col = (change-color (or data-color color) '(1 1 1) depth)
+				       :do
+					  (unless (equalp last-color col)
+					    (stroke)
+					    (apply #'set-rgb-stroke col)
+					    (apply #'set-rgb-fill col)
+					    (setf last-color col))
+					  (when (and x1 x2 (interval-not-empty-p x1 x2))
+					    (setf start-marker (or start-marker (< sx1 min-x)))
+					    (setf stop-marker (or stop-marker (> sx2 max-x)))
+					    (when mark-start/stop
+					      (when (< min-x ix1 (+ min-x range-x-block)) (push (list x1 adj-y) mark-positions))
+					      (when (< min-x ix2 (+ min-x range-x-block)) (push (list x2 adj-y) mark-positions)))
+					    (move-to x1 adj-y)
+					    (line-to x2 adj-y)))
+				 (stroke))
+			(when (or start-marker stop-marker mark-positions)
 			  (with-saved-state
 			    (set-rgb-stroke 0 0 0)
 			    (set-rgb-fill 0 0 0)
 			    (when start-marker (draw-marker 0 y (- ms)))
 			    (when stop-marker  (draw-marker width y ms))
-			    (pdf:fill-path))))))
+			    (pdf:fill-path)
+			    (when mark-positions
+;			      (format t "Here we go!~%")
+			      (set-line-width 0.5)
+			      (loop :for (x y) :in (remove-duplicates mark-positions) :do
+				(move-to x (- y ms))
+				(line-to x (+ y ms)))
+			      (pdf:stroke)))))))
     (draw-object (x-axis plot))
     (draw-object (y-axis plot))))
 
