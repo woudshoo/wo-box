@@ -267,6 +267,13 @@
 		     :for y = (label-pos-repeat-vertical-axis y-axis serie-count block)
 		     :for grouped-serie = (group-by:group-by serie :key #'third :value #'identity)
 		     :do
+			(with-saved-state
+			  (set-line-width 1)
+			  (set-rgb-stroke 0.5 0.5 0.5)
+			  (pdf:set-dash-pattern '(1 10) 0)
+			  (move-to 0 y)
+			  (line-to width y)
+			  (stroke))
 ;			(format t "do-serie: ~D~%" serie-count)
 ;			(format t "grouped-serie: ~A~%" grouped-serie)
 			(loop :for (depth . sub-serie) :in (sort grouped-serie (lambda (x y) (< (or x -1) (or y -1))) :key #'car)
