@@ -6,7 +6,8 @@
   :license  "Specify license here"
   :version "0.0.1"
   :serial t
-  :depends-on (#:cl-pdf #:cl-typesetting #:group-by)
+  :depends-on (#:cl-pdf #:cl-typesetting #:group-by #:local-time)
   :components ((:file "package")
+	       (:file "splot")
                (:file "wo-box")
 	       (:file "test-plot")))
