@@ -1,0 +1,76 @@
+* Notes on Implement Custom Objects cl-typesetting
+
+** Things that did not work as expected
+
+This is mainly unexperience:
+
+*** No content
+
+Because =tt:write-document= does not flush the final page,
+you need the blurb:
+
+ :  (when pdf:*page* (typeset:finalize-page pdf:*page*))
+
+*** No content drawn
+
+The class =container-box= does not do any drawing of the sub content boxes.
+
+*** No decoration drawn
+
+The standard =stroke= method implementations do not use =call-next-method=, so the mixins are not called.
+
+** Surprises
+
+*** vboxes/hboxes size are based on content
+
+1. The box =sc= is automatically sized in the =:after= method on setting the =boxes= slot.
+   The code that does this is =compute-natural-box-size=.
+
+*** Adjustable-p influences base-line
+
+The baseline of the box is different when =adjustable-p= is =t=.
+
+    
+* Attempts
+
+** First Attempt
+
+
+#+begin_src lisp
+(defun test-e (&optional (file-name #P "/tmp/test-e.pdf"))
+  (tt:with-document ()
+    (let ((cc (tt:compile-text ()
+		"Hallo" :eol
+		(let* ((fl (tt::fit-lines (tt:compile-text () "Inside" :eol "I-2") 100 100))
+		      (sc (make-instance 'v-boxed :dy 0 :dx 0  :boxes fl)))
+		  (tt::add-box sc))
+		"Two lines")))
+      (tt:draw-pages cc)
+      (when pdf:*page* (typeset:finalize-page pdf:*page*))
+      (tt:write-document file-name))))
+#+end_src
+
+
+
+* Code Notes??
+
+
+Boxes have a size, indicated by =dx= and =dy=
+They also have a =baseline= for aligning the different boxes horizontally or vertically.
+
+
+   
+
+* Boxes
+
+** VBOX
+
+Meant to contain things drawn into a vertical direction.
+
+** HBOX
+
+Meant to contain things drawn into a horizontal direction.
+
+- =baseline=
+
+  
