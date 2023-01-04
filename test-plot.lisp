@@ -107,7 +107,7 @@
 (defun test-plot-s (&optional (file-name #P "/tmp/splot.pdf"))
   (pdf:with-document ()
     (pdf:with-page (:bounds #(0 0 650 800))
-      (draw-object
+      (pdf:draw-object
        (make-instance 'cl-pdf:plot-s :x 50 :y 50 :width 500
 ;			      :height 300
 			      :line-width 4.0

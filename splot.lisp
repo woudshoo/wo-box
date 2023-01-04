@@ -37,6 +37,31 @@ Becomes
 Here the REPEAT-COUNT is 2 and the GROUP-SEPARATION is the length of ':'.
 "))
 
+
+(defmethod group-pos-start ((axis repeat-vertical-histo-axis) (group number))
+  "Returns the position on the AXIS for group GROUP.
+
+For y axis, it will return the y positions, for x axis the x position.
+GROUP is indicated by an integer, starting with 0."
+  (with-slots (height repeat-count group-separation) axis
+    (let ((group-height (/ (- height (* (- repeat-count 1) group-separation)) repeat-count)))
+      (- height
+	 (* group group-height)
+	 (* group group-separation)))))
+
+(defmethod group-pos-end ((axis repeat-vertical-histo-axis) (group number))
+    "Returns the position on the AXIS for group GROUP.
+
+For y axis, it will return the y positions, for x axis the x position.
+GROUP is indicated by an integer, starting with 0."
+  (with-slots (height repeat-count group-separation) axis
+    (let ((group-height (/ (- height (* (- repeat-count 1) group-separation)) repeat-count)))
+      (- height
+	 (* group group-height)
+	 (* group group-separation)
+	 group-height))))
+
+
 (defun label-pos-repeat-vertical-axis (axis label-index repeat-index)
   (with-slots (height repeat-count group-separation label-names) axis
     (let* ((group-height (/ (- height (* (- repeat-count 1) group-separation)) repeat-count))
@@ -53,9 +78,9 @@ Here the REPEAT-COUNT is 2 and the GROUP-SEPARATION is the length of ':'.
     (translate (x axis) (y axis))
     (set-line-width (line-width axis))
     (apply #'set-rgb-stroke (line-color axis))
-    (move-to 0 0)
-    (line-to 0 (height axis))
-    (stroke)
+#+nil     (move-to 0 0)
+#+nil    (line-to 0 (height axis))
+#+nil    (stroke)
 
     (apply #'set-rgb-fill (label-color axis))
     (loop :for repeat-index :from 0
@@ -140,7 +165,8 @@ Here the REPEAT-COUNT is 2 and the GROUP-SEPARATION is the length of ':'.
 				       :y (y plot)
 				       :width (width plot)
 				       :min-value (or (getf init-options :min-value) 0)
-				       :max-value (or (getf init-options :max-value) 12.0)))
+				       :max-value (or (getf init-options :max-value) 12.0)
+				       :nb-ticks (+ 1 (or (getf init-options :nb-x-breaks) 7))))
   (unless (getf init-options :repeat-count)
     (setf (repeat-count plot) (- (axis-max (x-axis plot))
 				 (axis-min (x-axis plot)))))
@@ -185,11 +211,13 @@ the height is 2 |ms| and the point is at ms+x y."
 
 
 (defmethod grid-path ((plot plot-s))
-  "Draws the grid for plot."
-  (let ((height (height plot)))
+  "Draws the grid for plot. (The vertical lines breaking up the strips.)"
+  (let ((height (height plot))
+	(y-axis (y-axis plot)))
     (loop :for tick-x :across (ticks-positions (x-axis plot)) :do
-      (move-to tick-x 0)
-      (line-to tick-x height))))    
+      (loop :for group :from 0 :below (repeat-count y-axis) :do
+	(move-to tick-x (group-pos-start y-axis group ))
+	(line-to tick-x (group-pos-end y-axis group))))))    
 
 
 (defmethod draw-object ((plot plot-s))
@@ -208,6 +236,8 @@ the height is 2 |ms| and the point is at ms+x y."
       
       (set-line-width line-width)
       (pdf:set-line-cap 0)
+
+      ;;; Loop over the strips
       (loop :with repeat-count = (repeat-count plot)
 	    :with range-x-block = (/ (- max-value-x min-value-x) repeat-count)
 	    :for block :from 0
@@ -216,6 +246,8 @@ the height is 2 |ms| and the point is at ms+x y."
 	    :for max-x = (+ min-x range-x-block)
 	    :with scale-x =  (* (axis-scale (x-axis plot)) repeat-count)
 	    :do
+
+	       ;;; Loop over the series
 	       (loop :with y-axis = (y-axis plot)
 		     :for start-marker = nil
 		     :for stop-marker  = nil
