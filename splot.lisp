@@ -78,9 +78,13 @@ GROUP is indicated by an integer, starting with 0."
     (translate (x axis) (y axis))
     (set-line-width (line-width axis))
     (apply #'set-rgb-stroke (line-color axis))
-#+nil     (move-to 0 0)
-#+nil    (line-to 0 (height axis))
-#+nil    (stroke)
+
+    ;; this drew the vertical line next to the labels.
+    ;; this line (now partial) is also drawn by code for the grid-path
+    ;; in the main plot routine.   So this commenting out is conceptually wrong.
+    #+nil     (move-to 0 0)
+    #+nil    (line-to 0 (height axis))
+    #+nil    (stroke)
 
     (apply #'set-rgb-fill (label-color axis))
     (loop :for repeat-index :from 0
@@ -142,9 +146,72 @@ GROUP is indicated by an integer, starting with 0."
 	  :do
 	     (move-to tick-pos 0)
 	     (line-to tick-pos tick-depth))
-    (stroke)))
+    (stroke)
+    (draw-duration-indicator axis 0 1 (* -1 (tick-length axis)) "ONE")
+    (draw-duration-indicator axis 0 (-  (nb-ticks axis) 1) (* -2.5 (tick-length axis)) (format nil "Max:~A Min:~A, SCALE: ~A" (axis-max axis) (axis-min axis) (axis-scale axis)))))
 
 
+(defun draw-arrow-head (x1 y1 x2 y2 &key arrow-length arrow-width)
+  "Draw a arrow head at x2 y2.   The arrow is pointing away from the line (x1 y1)-(x2 y2)."
+    (let* ((nx (- x1 x2))
+	   (ny (- y1 y2))
+	   (l (/ (sqrt (+ (* nx nx) (* ny ny)))))
+	   (x0 (+ x2 (* nx arrow-length l)))
+	   (y0 (+ y2 (* ny arrow-length l)))
+	   (dx (* nx arrow-width l))
+	   (dy (* ny arrow-width l)))
+      (pdf:move-to x2 y2)
+      (pdf:line-to (+ x0 dy) (- y0 dx))
+      (pdf:line-to (- x0 dy) (+ y0 dx))
+      (pdf:line-to x2 y2)
+      (pdf:fill-and-stroke)))
+
+(defun draw-line-with-arrow (x1 y1 x2 y2 &key (arrow-length 3) (arrow-width 2))
+  "Draw a line ending in an arrow.  Line is from (x1 y1) to (x2 y2), arrows point is at (x2 y2)."
+  (pdf:move-to x1 y1)
+  (pdf:line-to x2 y2)
+  (draw-arrow-head x1 y1 x2 y2 :arrow-length arrow-length :arrow-width arrow-width))
+
+
+(defmethod draw-duration-indicator ((axis horizontal-splot-axis)
+				    (from-tick integer)
+				    (to-tick integer)
+				    (offset number)
+				    (text string))
+  "Draw a marker from FROM-TICK to TO-TICK.
+The marker will look like this:
+
+   <-- TEXT             -->
+
+where the <-- and --> match the FROM-TICK and TO-TICK.
+The OFFSET is the vertical position where it is drawn.
+
+However we might want to interpret OFFSET as relative to the font size?"
+
+  ;; initial no arrow, I need to look up the PDF reference for arrows.
+
+  (set-line-width (line-width axis))
+  (apply #'set-rgb-stroke (label-color axis))
+  (apply #'set-rgb-fill (label-color axis))
+  (let* ((ticks (ticks-positions axis))
+	 (from (aref ticks from-tick))
+	 (to (aref ticks to-tick))
+
+	 (font (label-font axis))
+	 (font-size (label-font-size axis))
+	 (font-metrics (pdf:font-metrics font))
+	 (font-y-offset (* 0.5 font-size (pdf:cap-height font-metrics)))
+	 (font-x-offset (* 0.25 font-size))
+	 (marker-width (* 1 (tick-length axis))))
+
+    (draw-line-with-arrow (+ from marker-width) offset from offset)
+    (draw-line-with-arrow (- to marker-width) offset to offset)
+    ;; need to adjust for font height etc.
+    (draw-right-text (+ from marker-width font-x-offset) (- offset font-y-offset) text font font-size)))
+  
+
+  
+  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; splot main clas
@@ -166,7 +233,9 @@ GROUP is indicated by an integer, starting with 0."
 				       :width (width plot)
 				       :min-value (or (getf init-options :min-value) 0)
 				       :max-value (or (getf init-options :max-value) 12.0)
-				       :nb-ticks (+ 1 (or (getf init-options :nb-x-breaks) 7))))
+				       :nb-ticks (+ 1 (or (getf init-options :nb-x-breaks) 7))
+				       :label-font-size 8.0
+				       :label-color '(1.0 0.4 0.0)))
   (unless (getf init-options :repeat-count)
     (setf (repeat-count plot) (- (axis-max (x-axis plot))
 				 (axis-min (x-axis plot)))))
