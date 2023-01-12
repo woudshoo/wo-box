@@ -115,7 +115,9 @@ GROUP is indicated by an integer, starting with 0."
    (axis-scale :accessor axis-scale)
    (nb-ticks :accessor nb-ticks :initform 8 :initarg :nb-ticks)
    (axis-min :accessor axis-min)
-   (axis-max :accessor axis-max)))
+   (axis-max :accessor axis-max)
+   (label-one-tick :accessor label-one-tick :initform nil :initarg :label-one-tick)
+   (label-all-ticks :accessor label-all-ticks :initform nil :initarg :label-all-ticks)))
 
 
 (defmethod initialize-instance :after ((axis horizontal-splot-axis) &rest init-options &key &allow-other-keys)
@@ -147,8 +149,10 @@ GROUP is indicated by an integer, starting with 0."
 	     (move-to tick-pos 0)
 	     (line-to tick-pos tick-depth))
     (stroke)
-    (draw-duration-indicator axis 0 1 (* -1 (tick-length axis)) "ONE")
-    (draw-duration-indicator axis 0 (-  (nb-ticks axis) 1) (* -2.5 (tick-length axis)) (format nil "Max:~A Min:~A, SCALE: ~A" (axis-max axis) (axis-min axis) (axis-scale axis)))))
+    (alexandria:when-let (label (label-one-tick axis))
+      (draw-duration-indicator axis 0 1 (* -1 (tick-length axis)) label))
+    (alexandria:when-let (label (label-all-ticks axis))
+      (draw-duration-indicator axis 0 (-  (nb-ticks axis) 1) (* -2.5 (tick-length axis)) label))))
 
 
 (defun draw-arrow-head (x1 y1 x2 y2 &key arrow-length arrow-width)
@@ -235,7 +239,9 @@ However we might want to interpret OFFSET as relative to the font size?"
 				       :max-value (or (getf init-options :max-value) 12.0)
 				       :nb-ticks (+ 1 (or (getf init-options :nb-x-breaks) 7))
 				       :label-font-size 8.0
-				       :label-color '(1.0 0.4 0.0)))
+				       :label-color '(1.0 0.4 0.0)
+				       :label-one-tick (getf init-options :label-one-tick)
+				       :label-all-ticks (getf init-options :label-all-ticks)))
   (unless (getf init-options :repeat-count)
     (setf (repeat-count plot) (- (axis-max (x-axis plot))
 				 (axis-min (x-axis plot)))))
@@ -281,8 +287,7 @@ the height is 2 |ms| and the point is at ms+x y."
 
 (defmethod grid-path ((plot plot-s))
   "Draws the grid for plot. (The vertical lines breaking up the strips.)"
-  (let ((height (height plot))
-	(y-axis (y-axis plot)))
+  (let ((y-axis (y-axis plot)))
     (loop :for tick-x :across (ticks-positions (x-axis plot)) :do
       (loop :for group :from 0 :below (repeat-count y-axis) :do
 	(move-to tick-x (group-pos-start y-axis group ))
@@ -290,8 +295,7 @@ the height is 2 |ms| and the point is at ms+x y."
 
 
 (defmethod draw-object ((plot plot-s))
-  (let ((height (height plot))
-	(width (width plot))
+  (let ((width (width plot))
 	(min-value-x (axis-min (x-axis plot)))
 	(max-value-x (axis-max (x-axis plot)))
 	(mark-start/stop   t)
