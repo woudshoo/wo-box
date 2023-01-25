@@ -59,7 +59,15 @@ Boxes have a size, indicated by =dx= and =dy=
 They also have a =baseline= for aligning the different boxes horizontally or vertically.
 
 
-   
+* Coordinate System
+
+1. The PDF coordinate system has the origin at the bottom left.
+2. The cl-typesetting uses as default reference point of a box, the top left.
+
+
+  
+
+  
 
 * Boxes
 
@@ -71,6 +79,124 @@ Meant to contain things drawn into a vertical direction.
 
 Meant to contain things drawn into a horizontal direction.
 
-- =baseline=
+#+begin_example
+   +---+---------------+  .
+   |   |               |  .
+   |   |               |  .
+   |   |               |  .
+   +---+---------------+  > internal-baseline
+   |   |               |
+   +---+---------------+
+
+   ....^ baseline
+#+end_example
+
+
+- =baseline= ::  The location used to place this box in the vertical stream it is part off.
+- =interal-baseline= :: The reference location used to place the content of the hbox.
 
   
+** CHAR-BOX
+
+
+   Based on adobe font metrics, A box looks like this:
+
+   #+begin_example
+       +------------------+
+       |                  |
+       |                  |  ascender
+       |                  |
+       +------------------+
+       |                  |  - descender
+       +------------------+
+          width 
+   #+end_example   
+   
+   There are two version
+
+
+*** With exact char boxes
+
+1. The height is =ascender - descender= (Not scaled????)
+2. The width is the same as for the /without exact char-boxes/
+3. The baseline is the =ascender=,
+             
+
+    
+*** Without exact char-boxex
+
+This is a simple variant,
+
+1. The height is the =*leading*=, which is $font-size * leading-ratio$ of the font
+2. The width is correct, =char-width of char * text-x-scale*.
+3. Baseline is based on the font descender, basically:  =font-size + font-descender=   
+
+* Text
+
+** Compile text
+
+
+This takes a text specification and translates it into =text-content= object, which
+is a list of boxes and layout instructions, e.g.:
+
+#+begin_example
+style-box char-box hglue(inter-char-glue) hyphen-box
+     hglue(kerning) char-box hglue(inter-char-glue)
+     white-char-box :eol ...
+#+end_example
+
+*** Input
+
+It is a macro, which will create code to be executed (obviously).
+The translations are taken care of by the generic method =insert-stuff=.
+
+The current translations are:
+
+| Thing             | Translation                                                                    |
+|-------------------+--------------------------------------------------------------------------------|
+| String            | translated into char-boxes, hyphenation points, kerning, whitespace boxes etc. |
+| :eol              | (add-box :eol)                                                                 |
+| :fresh-page       | (add-box :fresh-page)                                                          |
+| :eop              | (add-box :eop)                                                                 |
+| :vfill            | (add-box (make-vfill-glue))                                                    |
+| :hfill            | (add-box (make-hfill-glue))                                                    |
+| Symbol            | Converts symbol to string and does the String thing                            |
+|-------------------+--------------------------------------------------------------------------------|
+| None of the above | Literraly inserted, so will be executed/expanded                               |
+
+
+The last line means that other macros or functions can be executed.   A further list of these is:
+
+| Thing       | Args                  | Description                                                                      |
+|-------------+-----------------------+----------------------------------------------------------------------------------|
+| with-style  | style                 | adds style boxes and change dynamic environment according to style, also reverts |
+| set-style   | style                 | same as with-style, but does not restore                                         |
+| with-offset | offset                | change dynamic environment =*offset*=                                            |
+| paragraph   | style                 | with-style with extras, the extras are, put margins around it, applies first     |
+|             |                       | line indent if needed.                                                           |
+| vbox        | :align, :adjustable-p | wraps content in a vbox (NOTE: REmove first box of content???)                   |
+| hbox        | :align, :adjustable-p |                                                                                  |
+|-------------+-----------------------+----------------------------------------------------------------------------------|
+| enumarate   |                       |                                                                                  |
+
+
+** fit-lines
+
+Is the main layout routine, which converts the =text-content=
+Which returns a list of boxes.
+
+Basically it takes the stream of boxes in the =text-content= and
+breaks them up in lines.   It will interprete =:eol= etc.
+
+So very roughly speaking, it breaks the stream of =text-content= boxes
+in runs and put the runs into =text-line= boxes.
+
+However, it can add and remove boxes from the stream to create the desired layout.
+
+** Two Ways of Drawing =text-content=
+
+
+*** =draw-block=
+
+    
+   
