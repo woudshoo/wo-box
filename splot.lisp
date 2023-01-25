@@ -37,6 +37,31 @@ Becomes
 Here the REPEAT-COUNT is 2 and the GROUP-SEPARATION is the length of ':'.
 "))
 
+
+(defmethod group-pos-start ((axis repeat-vertical-histo-axis) (group number))
+  "Returns the position on the AXIS for group GROUP.
+
+For y axis, it will return the y positions, for x axis the x position.
+GROUP is indicated by an integer, starting with 0."
+  (with-slots (height repeat-count group-separation) axis
+    (let ((group-height (/ (- height (* (- repeat-count 1) group-separation)) repeat-count)))
+      (- height
+	 (* group group-height)
+	 (* group group-separation)))))
+
+(defmethod group-pos-end ((axis repeat-vertical-histo-axis) (group number))
+    "Returns the position on the AXIS for group GROUP.
+
+For y axis, it will return the y positions, for x axis the x position.
+GROUP is indicated by an integer, starting with 0."
+  (with-slots (height repeat-count group-separation) axis
+    (let ((group-height (/ (- height (* (- repeat-count 1) group-separation)) repeat-count)))
+      (- height
+	 (* group group-height)
+	 (* group group-separation)
+	 group-height))))
+
+
 (defun label-pos-repeat-vertical-axis (axis label-index repeat-index)
   (with-slots (height repeat-count group-separation label-names) axis
     (let* ((group-height (/ (- height (* (- repeat-count 1) group-separation)) repeat-count))
@@ -53,9 +78,13 @@ Here the REPEAT-COUNT is 2 and the GROUP-SEPARATION is the length of ':'.
     (translate (x axis) (y axis))
     (set-line-width (line-width axis))
     (apply #'set-rgb-stroke (line-color axis))
-    (move-to 0 0)
-    (line-to 0 (height axis))
-    (stroke)
+
+    ;; this drew the vertical line next to the labels.
+    ;; this line (now partial) is also drawn by code for the grid-path
+    ;; in the main plot routine.   So this commenting out is conceptually wrong.
+    #+nil     (move-to 0 0)
+    #+nil    (line-to 0 (height axis))
+    #+nil    (stroke)
 
     (apply #'set-rgb-fill (label-color axis))
     (loop :for repeat-index :from 0
@@ -86,7 +115,9 @@ Here the REPEAT-COUNT is 2 and the GROUP-SEPARATION is the length of ':'.
    (axis-scale :accessor axis-scale)
    (nb-ticks :accessor nb-ticks :initform 8 :initarg :nb-ticks)
    (axis-min :accessor axis-min)
-   (axis-max :accessor axis-max)))
+   (axis-max :accessor axis-max)
+   (label-one-tick :accessor label-one-tick :initform nil :initarg :label-one-tick)
+   (label-all-ticks :accessor label-all-ticks :initform nil :initarg :label-all-ticks)))
 
 
 (defmethod initialize-instance :after ((axis horizontal-splot-axis) &rest init-options &key &allow-other-keys)
@@ -117,9 +148,74 @@ Here the REPEAT-COUNT is 2 and the GROUP-SEPARATION is the length of ':'.
 	  :do
 	     (move-to tick-pos 0)
 	     (line-to tick-pos tick-depth))
-    (stroke)))
+    (stroke)
+    (alexandria:when-let (label (label-one-tick axis))
+      (draw-duration-indicator axis 0 1 (* -1 (tick-length axis)) label))
+    (alexandria:when-let (label (label-all-ticks axis))
+      (draw-duration-indicator axis 0 (-  (nb-ticks axis) 1) (* -2.5 (tick-length axis)) label))))
 
 
+(defun draw-arrow-head (x1 y1 x2 y2 &key arrow-length arrow-width)
+  "Draw a arrow head at x2 y2.   The arrow is pointing away from the line (x1 y1)-(x2 y2)."
+    (let* ((nx (- x1 x2))
+	   (ny (- y1 y2))
+	   (l (/ (sqrt (+ (* nx nx) (* ny ny)))))
+	   (x0 (+ x2 (* nx arrow-length l)))
+	   (y0 (+ y2 (* ny arrow-length l)))
+	   (dx (* nx arrow-width l))
+	   (dy (* ny arrow-width l)))
+      (pdf:move-to x2 y2)
+      (pdf:line-to (+ x0 dy) (- y0 dx))
+      (pdf:line-to (- x0 dy) (+ y0 dx))
+      (pdf:line-to x2 y2)
+      (pdf:fill-and-stroke)))
+
+(defun draw-line-with-arrow (x1 y1 x2 y2 &key (arrow-length 3) (arrow-width 2))
+  "Draw a line ending in an arrow.  Line is from (x1 y1) to (x2 y2), arrows point is at (x2 y2)."
+  (pdf:move-to x1 y1)
+  (pdf:line-to x2 y2)
+  (draw-arrow-head x1 y1 x2 y2 :arrow-length arrow-length :arrow-width arrow-width))
+
+
+(defmethod draw-duration-indicator ((axis horizontal-splot-axis)
+				    (from-tick integer)
+				    (to-tick integer)
+				    (offset number)
+				    (text string))
+  "Draw a marker from FROM-TICK to TO-TICK.
+The marker will look like this:
+
+   <-- TEXT             -->
+
+where the <-- and --> match the FROM-TICK and TO-TICK.
+The OFFSET is the vertical position where it is drawn.
+
+However we might want to interpret OFFSET as relative to the font size?"
+
+  ;; initial no arrow, I need to look up the PDF reference for arrows.
+
+  (set-line-width (line-width axis))
+  (apply #'set-rgb-stroke (label-color axis))
+  (apply #'set-rgb-fill (label-color axis))
+  (let* ((ticks (ticks-positions axis))
+	 (from (aref ticks from-tick))
+	 (to (aref ticks to-tick))
+
+	 (font (label-font axis))
+	 (font-size (label-font-size axis))
+	 (font-metrics (pdf:font-metrics font))
+	 (font-y-offset (* 0.5 font-size (pdf:cap-height font-metrics)))
+	 (font-x-offset (* 0.25 font-size))
+	 (marker-width (* 1 (tick-length axis))))
+
+    (draw-line-with-arrow (+ from marker-width) offset from offset)
+    (draw-line-with-arrow (- to marker-width) offset to offset)
+    ;; need to adjust for font height etc.
+    (draw-right-text (+ from marker-width font-x-offset) (- offset font-y-offset) text font font-size)))
+  
+
+  
+  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; splot main clas
@@ -140,7 +236,12 @@ Here the REPEAT-COUNT is 2 and the GROUP-SEPARATION is the length of ':'.
 				       :y (y plot)
 				       :width (width plot)
 				       :min-value (or (getf init-options :min-value) 0)
-				       :max-value (or (getf init-options :max-value) 12.0)))
+				       :max-value (or (getf init-options :max-value) 12.0)
+				       :nb-ticks (+ 1 (or (getf init-options :nb-x-breaks) 7))
+				       :label-font-size 8.0
+				       :label-color '(1.0 0.4 0.0)
+				       :label-one-tick (getf init-options :label-one-tick)
+				       :label-all-ticks (getf init-options :label-all-ticks)))
   (unless (getf init-options :repeat-count)
     (setf (repeat-count plot) (- (axis-max (x-axis plot))
 				 (axis-min (x-axis plot)))))
@@ -185,16 +286,16 @@ the height is 2 |ms| and the point is at ms+x y."
 
 
 (defmethod grid-path ((plot plot-s))
-  "Draws the grid for plot."
-  (let ((height (height plot)))
+  "Draws the grid for plot. (The vertical lines breaking up the strips.)"
+  (let ((y-axis (y-axis plot)))
     (loop :for tick-x :across (ticks-positions (x-axis plot)) :do
-      (move-to tick-x 0)
-      (line-to tick-x height))))    
+      (loop :for group :from 0 :below (repeat-count y-axis) :do
+	(move-to tick-x (group-pos-start y-axis group ))
+	(line-to tick-x (group-pos-end y-axis group))))))    
 
 
 (defmethod draw-object ((plot plot-s))
-  (let ((height (height plot))
-	(width (width plot))
+  (let ((width (width plot))
 	(min-value-x (axis-min (x-axis plot)))
 	(max-value-x (axis-max (x-axis plot)))
 	(mark-start/stop   t)
@@ -208,6 +309,8 @@ the height is 2 |ms| and the point is at ms+x y."
       
       (set-line-width line-width)
       (pdf:set-line-cap 0)
+
+      ;;; Loop over the strips
       (loop :with repeat-count = (repeat-count plot)
 	    :with range-x-block = (/ (- max-value-x min-value-x) repeat-count)
 	    :for block :from 0
@@ -216,6 +319,8 @@ the height is 2 |ms| and the point is at ms+x y."
 	    :for max-x = (+ min-x range-x-block)
 	    :with scale-x =  (* (axis-scale (x-axis plot)) repeat-count)
 	    :do
+
+	       ;;; Loop over the series
 	       (loop :with y-axis = (y-axis plot)
 		     :for start-marker = nil
 		     :for stop-marker  = nil
