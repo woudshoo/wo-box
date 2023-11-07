@@ -310,7 +310,7 @@ the height is 2 |ms| and the point is at ms+x y."
       (set-line-width line-width)
       (pdf:set-line-cap 0)
 
-      ;;; Loop over the strips
+      ;;; Loop over the strips/repeats of the blocks
       (loop :with repeat-count = (repeat-count plot)
 	    :with range-x-block = (/ (- max-value-x min-value-x) repeat-count)
 	    :for block :from 0
@@ -319,7 +319,6 @@ the height is 2 |ms| and the point is at ms+x y."
 	    :for max-x = (+ min-x range-x-block)
 	    :with scale-x =  (* (axis-scale (x-axis plot)) repeat-count)
 	    :do
-
 	       ;;; Loop over the series
 	       (loop :with y-axis = (y-axis plot)
 		     :for start-marker = nil
@@ -333,6 +332,7 @@ the height is 2 |ms| and the point is at ms+x y."
 		     :for y = (label-pos-repeat-vertical-axis y-axis serie-count block)
 		     :for grouped-serie = (group-by:group-by serie :key #'third :value #'identity)
 		     :do
+			;; For each lane in the block first plot the dashed background line
 			(with-saved-state
 			  (set-line-width (line-width (y-axis plot)))
 			  (set-rgb-stroke 0 0 0)
@@ -352,30 +352,50 @@ the height is 2 |ms| and the point is at ms+x y."
 				       :for col = (change-color (or data-color color) '(1 1 1) depth)
 				       :do
 					  (unless (equalp last-color col)
+					    ;; to optimize number of strokes, only
+					    ;; stroke when color changes.
 					    (stroke)
 					    (apply #'set-rgb-stroke col)
 					    (apply #'set-rgb-fill col)
 					    (setf last-color col))
-					  (when (and x1 x2 (interval-not-empty-p x1 x2))
-					    (setf start-marker (or start-marker (< sx1 min-x)))
-					    (setf stop-marker (or stop-marker (> sx2 max-x)))
-					    (when mark-start/stop
-					      (when (< min-x ix1 (+ min-x range-x-block)) (push (list x1 adj-y) mark-positions))
-					      (when (< min-x ix2 (+ min-x range-x-block)) (push (list x2 adj-y) mark-positions)))
-					    (move-to x1 adj-y)
-					    (line-to x2 adj-y)))
+					  (cond
+					    ((and x1 x2 (interval-not-empty-p x1 x2))
+					     ;; normal case
+					     ;; This to mark the edge of the swimming lane with continuation triangles
+					     (setf start-marker (or start-marker (< sx1 min-x)))
+					     (setf stop-marker (or stop-marker (> sx2 max-x)))
+					     ;; This sit to mark with bars the beginning and stop of a time range
+					     (when mark-start/stop
+					       (when (< min-x ix1 (+ min-x range-x-block)) (push (list x1 adj-y) mark-positions))
+					       (when (< min-x ix2 (+ min-x range-x-block)) (push (list x2 adj-y) mark-positions)))
+					     ;; Here we draw time range
+					     (move-to x1 adj-y)
+					     (line-to x2 adj-y))
+
+					    ((and (not (interval-not-empty-p sx1 sx2)) (or x1 x2))
+					     ;; empty interval, just put a star.
+					     (pdf:star (or x1 x2) adj-y ms (/ ms 2) 4))
+					    ))
+
 				 (stroke))
 			(when (or start-marker stop-marker mark-positions)
+			  ;; Put additional markes on the line segments/stars
 			  (with-saved-state
 			    (set-rgb-stroke 0 0 0)
 			    (set-rgb-fill 0 0 0)
+			    ;; Add the Continuation triangles at the beginning
+			    ;; or end of the swimming lanes
 			    (when start-marker (marker-path plot  0 y (- ms)))
 			    (when stop-marker  (marker-path plot  width y ms))
 			    (pdf:fill-path)
+			    ;; Mark the beginning and end of each colored segments with
+			    ;; black ticks if requested
 			    (when mark-positions
 			      (set-line-width 0.5)
 			      (loop :for (x y) :in (remove-duplicates mark-positions) :do
 				(move-to x (- y ms))
+				(line-to x (- y (/ ms 4)))
+				(move-to x (+ y (/ ms 4)))
 				(line-to x (+ y ms)))
 			      (pdf:stroke)))))))
     (draw-object (x-axis plot))

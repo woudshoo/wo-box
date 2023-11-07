@@ -123,3 +123,31 @@
 					((-3 -1) (0.2 1.8) (5 7) (8 14))
 					((-10 40))))))
     (pdf:write-document file-name)))
+
+
+(defun test-plot-flag (&optional (file-name #P"d:/Weeks/19/plot-flag.pdf"))
+  (let ((red '(1.0 0.0 0.0))
+	(l-red '(1.0 0.0 0.0 0.3))
+	(yellow '(1.0 0.85 0.0))
+	(l-yellow '(1.0 0.85 0.0 0.3))
+	(green '(0.0 1.0 0.0))
+	(l-green '(1.0 1.0 0.0 0.0)))
+    (pdf:with-document ()
+      (pdf:with-page (:bounds #(0 0 650 800))
+	(pdf:draw-object
+	 (make-instance 'cl-pdf:plot-flag :x 50 :y 250 :width 100 :height 200
+					  :series '((70 1045) (25 183) (164 3278))
+					  :scale (/ 5000.0)
+					  :labels&colors `(("red" (,red ,l-red))
+							   ("yellow" (,yellow ,l-yellow))
+							   ("green" (,green ,l-green)))))
+	(pdf:draw-object
+	 (make-instance 'cl-pdf:plot-flag :x 200 :y 250 :width 100 :height 200
+					  :series '((166 1102) (77 196) (135 3554))
+					  :scale (/ 5000.0)
+					  :labels&colors `(("red" (,red ,l-red))
+							   ("yellow" (,yellow ,l-yellow))
+							   ("green" (,green ,l-green))))))
+      (pdf:write-document file-name))))
+
+

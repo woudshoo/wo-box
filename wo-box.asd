@@ -9,5 +9,7 @@
   :depends-on (#:cl-pdf #:cl-typesetting #:group-by #:local-time)
   :components ((:file "package")
 	       (:file "splot")
+;	       (:file "mini-plot")
                (:file "wo-box")
+	       (:file "flag")
 	       (:file "test-plot")))
