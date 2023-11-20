@@ -6,12 +6,12 @@
   :license  "Specify license here"
   :version "0.0.1"
   :serial t
-  :depends-on (#:cl-pdf #:cl-typesetting #:group-by #:local-time #:cl-typegraph)
+  :depends-on (#:cl-pdf #:cl-typesetting #:group-by #:local-time #+nil #:cl-typegraph)
   :components ((:file "package")
 	       (:file "splot")
 ;	       (:file "mini-plot")
                (:file "wo-box")
 	       (:file "flag")
-	       (:file "test-plot")
-	       (:file "version-1")))
+#+nil	       (:file "test-plot")
+#+nil	       (:file "version-1")))
 
