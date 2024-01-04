@@ -306,10 +306,12 @@ the height is 2 |ms| and the point is at ms+x y."
       (set-line-width (line-width (x-axis plot)))
       (grid-path plot)
       (stroke)
-      
+      ;; Add title
+      (draw-left-text width (height plot) (title plot) (title-font plot) (title-font-size plot))
+       
       (set-line-width line-width)
       (pdf:set-line-cap 0)
-
+      
       ;;; Loop over the strips/repeats of the blocks
       (loop :with repeat-count = (repeat-count plot)
 	    :with range-x-block = (/ (- max-value-x min-value-x) repeat-count)
