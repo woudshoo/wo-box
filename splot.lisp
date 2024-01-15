@@ -220,9 +220,12 @@ However we might want to interpret OFFSET as relative to the font size?"
 ;;;
 ;;; splot main clas
 ;;;
+;;;
+;;; Need to document this class, especially how it works with repeat-count, series and block-title
 (defclass plot-s (chart-item)
   ((series :accessor series :initform () :initarg :series)
    (labels&colors :accessor labels&colors :initform (list) :initarg :labels&colors)
+   (block-title :accessor block-title :initform nil :initarg :block-title)
    (x-axis :accessor x-axis)
    (y-axis :accessor y-axis)
    (marker-size :accessor marker-size :initform 8.0 :initarg :marker-size)
@@ -299,7 +302,8 @@ the height is 2 |ms| and the point is at ms+x y."
 	(min-value-x (axis-min (x-axis plot)))
 	(max-value-x (axis-max (x-axis plot)))
 	(mark-start/stop   t)
-	(line-width (line-width plot)))
+	(line-width (line-width plot))
+	(block-title-fn (block-title plot)))
     (with-saved-state
       (translate (x plot) (y plot))
 
@@ -307,7 +311,7 @@ the height is 2 |ms| and the point is at ms+x y."
       (grid-path plot)
       (stroke)
       ;; Add title
-      (draw-left-text width (height plot) (title plot) (title-font plot) (title-font-size plot))
+#+nil      (draw-left-text width (height plot) (title plot) (title-font plot) (title-font-size plot))
        
       (set-line-width line-width)
       (pdf:set-line-cap 0)
@@ -399,7 +403,17 @@ the height is 2 |ms| and the point is at ms+x y."
 				(line-to x (- y (/ ms 4)))
 				(move-to x (+ y (/ ms 4)))
 				(line-to x (+ y ms)))
-			      (pdf:stroke)))))))
+			      (pdf:stroke)))))
+	       ;;; finally plot the title of the block.
+	       ;;; This is last, so it prints over the chart data if that spill outside the
+	       ;;; drawing area.
+	       (when block-title-fn
+		 (with-saved-state
+		   (set-rgb-stroke 0 0 0)
+		   (set-rgb-fill 0 0 0)
+		   (draw-left-text width (group-pos-start (y-axis plot) block)
+				   (funcall block-title-fn min-x max-x)
+				   (title-font plot) 8.0)))))
     (draw-object (x-axis plot))
     (draw-object (y-axis plot))))
 
